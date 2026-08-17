@@ -13,6 +13,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp
 
+    # Deno — JS runtime yt-dlp needs to decode YouTube's signature obfuscation.
+RUN curl -fsSL https://deno.land/install.sh | sh -s -- -y \
+    && ln -s /root/.deno/bin/deno /usr/local/bin/deno
+
 WORKDIR /app
 
 COPY package*.json ./
