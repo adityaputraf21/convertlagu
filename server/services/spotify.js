@@ -24,7 +24,67 @@ async function fetchWithRetry(url, headers, attempt = 1, maxAttempts = 3) {
   return res;
 }
 
-// Primary method: Spotify's public oEmbed endpoint (fast, clean JSON, zero auth)
+function extractTrackId(spotifyUrl) {
+  const match = spotifyUrl.match(/track\/([a-zA-Z0-9]+)/);
+  return match ? match[1] : null;
+}
+
+// ---------- Method 1 (preferred when configured): official Spotify Web API ----------
+// Uses the Client Credentials flow — this is a real authenticated API call,
+// not a scrape/embed request, so it isn't affected by the bot-detection
+// heuristics that flag datacenter IPs (like Railway's) differently from
+// residential ones. Needs a free app at https://developer.spotify.com/dashboard.
+let cachedToken = null;
+let cachedTokenExpiry = 0;
+
+async function getSpotifyApiToken() {
+  if (cachedToken && Date.now() < cachedTokenExpiry) return cachedToken;
+
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
+  const res = await fetch("https://accounts.spotify.com/api/token", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${basicAuth}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: "grant_type=client_credentials",
+    timeout: 15000,
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Gagal auth ke Spotify API (HTTP ${res.status}): ${body.slice(0, 150)}`);
+  }
+  const data = await res.json();
+  cachedToken = data.access_token;
+  cachedTokenExpiry = Date.now() + (data.expires_in - 60) * 1000; // refresh 60s early
+  return cachedToken;
+}
+
+async function tryOfficialApi(spotifyUrl) {
+  const trackId = extractTrackId(spotifyUrl);
+  if (!trackId) throw new Error("URL bukan link track Spotify yang valid");
+
+  const token = await getSpotifyApiToken();
+  const res = await fetchWithRetry(`https://api.spotify.com/v1/tracks/${trackId}`, {
+    Authorization: `Bearer ${token}`,
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Spotify API HTTP ${res.status}: ${body.slice(0, 150)}`);
+  }
+  const data = await res.json();
+  const artistNames = (data.artists || []).map((a) => a.name).join(", ");
+  return {
+    title: data.name || "",
+    thumbnail: data.album?.images?.[0]?.url || "",
+    apiArtist: artistNames, // official API gives us the real artist name directly
+  };
+}
+
+// ---------- Method 2 (fallback): Spotify's public oEmbed endpoint ----------
 async function tryOembed(spotifyUrl) {
   const oembedUrl = `https://open.spotify.com/oembed?url=${encodeURIComponent(spotifyUrl)}`;
   const res = await fetchWithRetry(oembedUrl, { ...BROWSER_HEADERS, Accept: "application/json" });
@@ -36,9 +96,7 @@ async function tryOembed(spotifyUrl) {
   return { title: data.title || "", thumbnail: data.thumbnail_url || "" };
 }
 
-// Fallback method: scrape the regular track page's Open Graph meta tags.
-// Used when /oembed specifically is having trouble but the main site isn't
-// (these are often served by different backends/caches on Spotify's side).
+// ---------- Fallback 2: scrape the regular track page's Open Graph meta tags ----------
 async function tryPageScrape(spotifyUrl) {
   const res = await fetchWithRetry(spotifyUrl, { ...BROWSER_HEADERS, Accept: "text/html" });
   if (!res.ok) throw new Error(`Halaman track HTTP ${res.status}`);
@@ -63,21 +121,41 @@ function decodeHtmlEntities(str) {
     .replace(/&gt;/g, ">");
 }
 
-// Spotify's streams are DRM'd, so neither method above ever gives us audio —
-// just metadata, which we use to build a search query and pull the actual
-// audio from YouTube.
+// Spotify's streams are DRM'd, so none of the methods above ever gives us
+// audio — just metadata, which we use to build a search query and pull the
+// actual audio from YouTube.
 async function resolve(spotifyUrl) {
   let meta;
-  try {
-    meta = await tryOembed(spotifyUrl);
-  } catch (oembedErr) {
+  const errors = [];
+
+  // Prefer the official API when credentials are configured — most reliable,
+  // especially on datacenter IPs (Railway, etc.) that scraping/oEmbed
+  // sometimes get flagged on.
+  if (process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET) {
     try {
-      meta = await tryPageScrape(spotifyUrl);
-    } catch (scrapeErr) {
-      throw new Error(
-        `Gagal ambil metadata dari Spotify lewat 2 metode berbeda. oEmbed: ${oembedErr.message} | Scrape halaman: ${scrapeErr.message}. Coba lagi beberapa saat, atau cek link-nya bener/gak private.`
-      );
+      meta = await tryOfficialApi(spotifyUrl);
+    } catch (apiErr) {
+      errors.push(`API resmi: ${apiErr.message}`);
     }
+  }
+
+  if (!meta) {
+    try {
+      meta = await tryOembed(spotifyUrl);
+    } catch (oembedErr) {
+      errors.push(`oEmbed: ${oembedErr.message}`);
+      try {
+        meta = await tryPageScrape(spotifyUrl);
+      } catch (scrapeErr) {
+        errors.push(`Scrape halaman: ${scrapeErr.message}`);
+      }
+    }
+  }
+
+  if (!meta) {
+    throw new Error(
+      `Gagal ambil metadata dari Spotify lewat semua metode yang dicoba. ${errors.join(" | ")}. Coba lagi beberapa saat, atau cek link-nya bener/gak private.`
+    );
   }
 
   const rawTitle = meta.title || "";
@@ -86,7 +164,7 @@ async function resolve(spotifyUrl) {
 
   return {
     title: rawTitle || match.title,
-    artist: match.artist,
+    artist: meta.apiArtist || match.artist,
     thumbnail: meta.thumbnail || match.thumbnail,
     duration: match.duration,
     sourceUrl: match.sourceUrl, // the YouTube URL we'll actually download from
@@ -96,4 +174,3 @@ async function resolve(spotifyUrl) {
 }
 
 module.exports = { resolve };
-
