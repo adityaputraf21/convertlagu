@@ -25,7 +25,7 @@ async function fetchWithRetry(url, headers, attempt = 1, maxAttempts = 3) {
 }
 
 function extractTrackId(spotifyUrl) {
-  const match = spotifyUrl.match(/track\/([a-zA-Z0-9]+)/);
+const match = spotifyUrl.match(/track[/:]([a-zA-Z0-9]+)/);
   return match ? match[1] : null;
 }
 
