@@ -1,11 +1,13 @@
 FROM node:20-bookworm-slim
 
 # ffmpeg (audio processing) + python3/pip (to install yt-dlp) + curl (healthcheck)
+# + unzip (required by the Deno installer below)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     python3 \
     python3-pip \
     curl \
+    unzip \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -13,7 +15,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp
 
-    # Deno — JS runtime yt-dlp needs to decode YouTube's signature obfuscation.
+# Deno — JS runtime yt-dlp needs to decode YouTube's signature obfuscation.
+# Without this, YouTube extraction gets rejected with
+# "No supported JavaScript runtime could be found".
 RUN curl -fsSL https://deno.land/install.sh | sh -s -- -y \
     && ln -s /root/.deno/bin/deno /usr/local/bin/deno
 
