@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: roblox-audio-converter
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: DATA_DIR
+        value: /app/data
+      - key: TMP_DIR
+        value: /app/tmp
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_REDIRECT_URI
+        sync: false
+      - key: ROBLOX_API_KEY
+        sync: false
+      - key: MIDTRANS_SERVER_KEY
+        sync: false
+      - key: MIDTRANS_CLIENT_KEY
+        sync: false
+      - key: APP_URL
+        sync: false
+
+# CATATAN: plan "free" Render gak support persistent disk, jadi data/*.json
+# (akun user, riwayat pemakaian) bakal ke-reset tiap kali redeploy.
+# Kalau udah mulai serius dipakai orang lain, upgrade ke plan "starter" ($7/bulan)
+# dan un-comment bagian disk di bawah biar data user gak ilang-ilang:
+#
+#     plan: starter
+#     disk:
+#       name: app-data
+#       mountPath: /app/data
+#       sizeGB: 1
+

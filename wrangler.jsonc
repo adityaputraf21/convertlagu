@@ -1,0 +1,26 @@
+{
+  "name": "roblox-audio-converter",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-08-16",
+  "containers": [
+    {
+      "class_name": "AppContainer",
+      "image": "./Dockerfile",
+      "max_instances": 1,
+      "instance_type": "standard-1"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      { "class_name": "AppContainer", "name": "APP_CONTAINER" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["AppContainer"] }
+  ],
+  "vars": {
+    "APP_URL": "https://roblox-audio-converter.<your-subdomain>.workers.dev",
+    "FREE_DAILY_LIMIT": "2",
+    "MIDTRANS_IS_PRODUCTION": "false"
+  }
+}

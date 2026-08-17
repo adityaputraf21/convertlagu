@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Audio History — Audio Converter</title>
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="auth.css" />
+<link rel="stylesheet" href="history.css" />
+</head>
+<body>
+<div class="history-wrap">
+
+  <div class="history-top">
+    <a href="index.html" class="link-btn">← Kembali</a>
+  </div>
+
+  <div class="history-header">
+    <div>
+      <h1>Audio History</h1>
+      <p class="muted">List of all audio successfully converted and uploaded to Roblox</p>
+    </div>
+    <div class="history-header-actions">
+      <input id="searchInput" type="text" placeholder="Search assets..." />
+      <button class="icon-btn" id="refreshBtn" title="Refresh">⟳</button>
+      <button class="ghost-full export-btn" id="exportBtn">⬇ Export CSV</button>
+    </div>
+  </div>
+
+  <div class="tabs" id="statusTabs">
+    <button class="status-tab active" data-status="all">All <span class="count" id="countAll">0</span></button>
+    <button class="status-tab" data-status="active">Active <span class="count" id="countActive">0</span></button>
+    <button class="status-tab" data-status="pending">Pending <span class="count" id="countPending">0</span></button>
+    <button class="status-tab" data-status="removed">Removed <span class="count" id="countRemoved">0</span></button>
+  </div>
+
+  <div class="history-grid" id="historyGrid">
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">◎</div>
+      <p>NO ASSETS FOUND</p>
+    </div>
+  </div>
+
+</div>
+
+<script src="auth-common.js"></script>
+<script src="history.js"></script>
+</body>
+</html>
